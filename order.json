@@ -1,0 +1,18 @@
+{
+    "nomorMeja": 1,
+    "items": [
+        {
+            "id": 1,
+            "nama": "Nasi Goreng",
+            "harga": 20000,
+            "jumlah": 2
+        },
+        {
+            "id": 2,
+            "nama": "Ayam Penyet",
+            "harga": 30000,
+            "jumlah": 2
+        }
+    ],
+    "totalHarga": 100000
+}
