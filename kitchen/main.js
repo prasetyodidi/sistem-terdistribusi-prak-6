@@ -71,9 +71,24 @@ async function run() {
 
     consumer.run({
         eachMessage: async ({ topic, partition, message }) => {
-            const order = message.value.toString();
-            console.log(`Received new order from topic "${topic}": ${order}`);
-            kitchen.addOrder(order);
+            try {
+                const orderData = JSON.parse(message.value.toString());
+                console.log(`Received new order from topic "${topic}":`);
+                console.log(`Order ID: ${orderData.id}`);
+                console.log(`Date: ${new Date(orderData.tanggal * 1000).toLocaleString()}`);
+                console.log(`Status: ${orderData.status}`);
+                console.log(`Table Number: ${orderData.nomorMeja}`);
+                console.log('Items:');
+                orderData.items.forEach((item, index) => {
+                    console.log(`${index + 1}. ${item.nama} - ${item.jumlah} pcs @ ${item.harga}`);
+                });
+                console.log(`Total Price: ${orderData.totalHarga}`);
+    
+                // Add the order ID to the kitchen's orders list
+                kitchen.addOrder(orderData.id);
+            } catch (error) {
+                console.error('Failed to process message:', error);
+            }
         },
     });
 
