@@ -10,7 +10,7 @@ class Kitchen extends EventEmitter {
 
     addOrder(order) {
         this.orders.push(order);
-        console.log(`Order added: ${order}`);
+        console.log(`Order added: ${order.id}`);
     }
 
     showOrders() {
@@ -19,7 +19,7 @@ class Kitchen extends EventEmitter {
         } else {
             console.log('Current orders:');
             this.orders.forEach((order, index) => {
-                console.log(`${index + 1}. ${order}`);
+                console.log(`${index + 1}. ${order.id}`);
             });
         }
     }
@@ -29,8 +29,13 @@ class Kitchen extends EventEmitter {
             console.log('No orders to complete.');
         } else {
             const completedOrder = this.orders.shift();
-            console.log(`Order completed: ${completedOrder}`);
-            this.emit('orderCompleted', completedOrder);
+            console.log(`Order completed: ${completedOrder.id}`);
+            
+            // Modify the order status to "siap"
+            const updatedOrder = { ...completedOrder, status: 'siap' };
+
+            // Emit the updated order to the notification topic
+            this.emit('orderCompleted', updatedOrder);
         }
     }
 }
@@ -50,10 +55,10 @@ const consumer = kafka.consumer({ groupId: 'kitchen-group' });
 const kitchen = new Kitchen();
 
 kitchen.on('orderCompleted', async (order) => {
-    console.log(`Notification: The order "${order}" is ready!`);
+    console.log(`Notification: The order "${order.id}" is ready!`);
     await producer.send({
         topic: 'notifikasi',
-        messages: [{ value: `Order completed: ${order}` }],
+        messages: [{ value: JSON.stringify(order) }],
     });
 });
 
@@ -85,7 +90,7 @@ async function run() {
                 console.log(`Total Price: ${orderData.totalHarga}`);
     
                 // Add the order ID to the kitchen's orders list
-                kitchen.addOrder(orderData.id);
+                kitchen.addOrder(orderData);
             } catch (error) {
                 console.error('Failed to process message:', error);
             }
