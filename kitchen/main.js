@@ -1,5 +1,6 @@
 const readline = require('readline');
 const EventEmitter = require('events');
+const { Kafka } = require('kafkajs');
 
 class Kitchen extends EventEmitter {
     constructor() {
@@ -34,10 +35,26 @@ class Kitchen extends EventEmitter {
     }
 }
 
+const kafka = new Kafka({
+    clientId: 'kitchen-app',
+    brokers: [
+        'localhost:9091',
+        'localhost:9092',
+        'localhost:9093',
+    ]
+});
+
+const producer = kafka.producer();
+const consumer = kafka.consumer({ groupId: 'kitchen-group' });
+
 const kitchen = new Kitchen();
 
-kitchen.on('orderCompleted', (order) => {
+kitchen.on('orderCompleted', async (order) => {
     console.log(`Notification: The order "${order}" is ready!`);
+    await producer.send({
+        topic: 'notifikasi',
+        messages: [{ value: `Order completed: ${order}` }],
+    });
 });
 
 const rl = readline.createInterface({
@@ -46,35 +63,46 @@ const rl = readline.createInterface({
     prompt: 'koki> ',
 });
 
-console.log('Welcome to the Kitchen CLI (koki)');
-console.log('Commands: add [order], list, complete, exit');
-rl.prompt();
+async function run() {
+    await producer.connect();
+    await consumer.connect();
 
-rl.on('line', (line) => {
-    const [command, ...args] = line.trim().split(' ');
-    switch (command) {
-        case 'add':
-            const order = args.join(' ');
-            if (order) {
-                kitchen.addOrder(order);
-            } else {
-                console.log('Please specify an order to add.');
-            }
-            break;
-        case 'list':
-            kitchen.showOrders();
-            break;
-        case 'complete':
-            kitchen.completeOrder();
-            break;
-        case 'exit':
-            rl.close();
-            break;
-        default:
-            console.log('Unknown command. Try: add [order], list, complete, exit');
-    }
+    await consumer.subscribe({ topic: 'order', fromBeginning: true });
+
+    consumer.run({
+        eachMessage: async ({ topic, partition, message }) => {
+            const order = message.value.toString();
+            console.log(`Received new order from topic "${topic}": ${order}`);
+            kitchen.addOrder(order);
+        },
+    });
+
+    console.log('Welcome to the Kitchen CLI (koki)');
+    console.log('Commands: add [order], list, complete, exit');
     rl.prompt();
-}).on('close', () => {
-    console.log('Exiting Kitchen CLI. Goodbye!');
-    process.exit(0);
-});
+
+    rl.on('line', async (line) => {
+        const [command, ...args] = line.trim().split(' ');
+        switch (command) {
+            case 'list':
+                kitchen.showOrders();
+                break;
+            case 'complete':
+                kitchen.completeOrder();
+                break;
+            case 'exit':
+                await producer.disconnect();
+                await consumer.disconnect();
+                rl.close();
+                break;
+            default:
+                console.log('Unknown command. Try: add [order], list, complete, exit');
+        }
+        rl.prompt();
+    }).on('close', () => {
+        console.log('Exiting Kitchen CLI. Goodbye!');
+        process.exit(0);
+    });
+}
+
+run().catch(console.error);
