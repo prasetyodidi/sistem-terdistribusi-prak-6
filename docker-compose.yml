@@ -1,14 +1,57 @@
+version: '3.8'
 services:
+
+  zoo1:
+    image: confluentinc/cp-zookeeper:7.9.0
+    ports:
+      - "${ZOOKEEPER_CLIENT_PORT:-2181}:${ZOOKEEPER_CLIENT_PORT:-2181}"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_SERVERS: zoo1:${ZOOKEEPER_SERVER_PORT1:-2888}:${ZOOKEEPER_SERVER_PORT2:-3888}
+
   kafka1:
     image: confluentinc/cp-kafka:7.9.0
-    hostname: kafka1
-    container_name: kafka1
     ports:
-      - "9091:9091"
+      - "${KAFKA1_PORT:-9091}:${KAFKA1_PORT:-9091}"
+    depends_on:
+      - zoo1
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: "192.168.31.184:2181"
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19091,EXTERNAL://192.168.31.116:9091
+      KAFKA_ZOOKEEPER_CONNECT: "${ZOOKEEPER_CLIENT_HOST}:${ZOOKEEPER_CLIENT_PORT:-2181}"
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://${KAFKA1_INTERNAL_HOST}:${KAFKA1_INTERNAL_PORT:-19091},EXTERNAL://${KAFKA1_EXTERNAL_ADDRESS:-192.168.33.203}:${KAFKA1_EXTERNAL_PORT:-9091}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+      KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"
+    volumes:
+      - ./create_topics.sh:/home/appuser/create_topics.sh
+  kafka2:
+    image: confluentinc/cp-kafka:7.9.0
+    ports:
+      - "${KAFKA2_PORT:-9092}:${KAFKA2_PORT:-9092}"
+    depends_on:
+      - zoo1
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: "${ZOOKEEPER_CLIENT_HOST}:${ZOOKEEPER_CLIENT_PORT:-2181}"
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://${KAFKA2_INTERNAL_HOST}:${KAFKA2_INTERNAL_PORT:-19092},EXTERNAL://${KAFKA2_EXTERNAL_ADDRESS:-192.168.33.203}:${KAFKA2_EXTERNAL_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+      KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"
+  kafka3:
+    image: confluentinc/cp-kafka:7.9.0
+    ports:
+      - "${KAFKA3_PORT:-9093}:${KAFKA3_PORT:-9093}"
+    depends_on:
+      - zoo1
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: "${ZOOKEEPER_CLIENT_HOST}:${ZOOKEEPER_CLIENT_PORT:-2181}"
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://${KAFKA3_INTERNAL_HOST}:${KAFKA3_INTERNAL_PORT:-19093},EXTERNAL://${KAFKA3_EXTERNAL_ADDRESS:-192.168.33.203}:${KAFKA3_EXTERNAL_PORT:-9093}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"

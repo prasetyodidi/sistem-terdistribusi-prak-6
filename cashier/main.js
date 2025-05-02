@@ -19,6 +19,8 @@ const rl = readline.createInterface({
     prompt: 'kasir> ',
 });
 
+const orders = []; // Store received orders
+
 async function run() {
     await producer.connect();
     await consumer.connect();
@@ -30,22 +32,54 @@ async function run() {
         eachMessage: async ({ topic, partition, message }) => {
             try {
                 const notification = JSON.parse(message.value.toString());
-                console.log(`Notification received for Order ID: ${notification.id}`);
-                console.log(`Status: ${notification.status}`);
-                console.log(`Table Number: ${notification.nomorMeja}`);
-                console.log(`Date: ${new Date(notification.tanggal * 1000).toLocaleString()}`);
+                orders.push(notification); // Add the order to the list
+                console.log(`New order received: Order ID ${notification.id}`);
+            } catch (error) {
+                console.error('Failed to process notification message:', error);
+            }
+        },
+    });
+
+    console.log('Welcome to the Cashier CLI (kasir)');
+    console.log('Listening for notifications from the kitchen...');
+    console.log('Type "list" to view orders, "pay <order_id>" to process payment, or "exit" to close the application.');
+    rl.prompt();
+
+    rl.on('line', async (line) => {
+        const command = line.trim();
+        if (command === 'exit') {
+            await producer.disconnect();
+            await consumer.disconnect();
+            rl.close();
+        } else if (command === 'list') {
+            if (orders.length === 0) {
+                console.log('No orders available.');
+            } else {
+                console.log('Orders:');
+                orders.forEach((order, index) => {
+                    console.log(`${index + 1}. Order ID: ${order.id}, Table: ${order.nomorMeja}, Total: ${order.totalHarga}`);
+                });
+            }
+        } else if (command.startsWith('pay ')) {
+            const orderId = command.split(' ')[1];
+            const order = orders.find(o => o.id === orderId);
+
+            if (!order) {
+                console.log(`Order with ID ${orderId} not found.`);
+            } else {
+                console.log(`Processing payment for Order ID: ${order.id}`);
+                console.log(`Table Number: ${order.nomorMeja}`);
+                console.log(`Total Price: ${order.totalHarga}`);
                 console.log('Items:');
-                notification.items.forEach((item, index) => {
+                order.items.forEach((item, index) => {
                     console.log(`${index + 1}. ${item.nama} - ${item.jumlah} pcs @ ${item.harga}`);
                 });
-                console.log(`Total Price: ${notification.totalHarga}`);
 
-                // Prompt the cashier to process payment
                 rl.question('Enter payment method (e.g., cash, card): ', async (paymentMethod) => {
                     const paymentDetails = {
-                        id: notification.id,
-                        nomorMeja: notification.nomorMeja,
-                        totalHarga: notification.totalHarga,
+                        id: order.id,
+                        nomorMeja: order.nomorMeja,
+                        totalHarga: order.totalHarga,
                         metodePembayaran: paymentMethod,
                         tanggal: Math.floor(Date.now() / 1000),
                     };
@@ -56,29 +90,19 @@ async function run() {
                         messages: [{ value: JSON.stringify(paymentDetails) }],
                     });
 
-                    console.log(`Payment processed for Order ID: ${notification.id}`);
+                    console.log(`Payment processed for Order ID: ${order.id}`);
                     console.log(`Payment Method: ${paymentMethod}`);
                     console.log('Payment confirmation sent to the customer.');
+
+                    // Remove the order from the list after payment
+                    const index = orders.indexOf(order);
+                    if (index > -1) {
+                        orders.splice(index, 1);
+                    }
                 });
-            } catch (error) {
-                console.error('Failed to process notification message:', error);
             }
-        },
-    });
-
-    console.log('Welcome to the Cashier CLI (kasir)');
-    console.log('Listening for notifications from the kitchen...');
-    console.log('Type "exit" to close the application.');
-    rl.prompt();
-
-    rl.on('line', async (line) => {
-        const command = line.trim();
-        if (command === 'exit') {
-            await producer.disconnect();
-            await consumer.disconnect();
-            rl.close();
         } else {
-            console.log('Unknown command. Type "exit" to close the application.');
+            console.log('Unknown command. Type "list" to view orders, "pay <order_id>" to process payment, or "exit" to close the application.');
         }
         rl.prompt();
     }).on('close', () => {
